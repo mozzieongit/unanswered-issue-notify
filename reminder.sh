@@ -151,8 +151,10 @@ prettify-issues() {
     '
 }
 
-fetch-issues() {
-  gh api --paginate --method GET -F per_page=100 "/repos/${REPO}/issues?state=open&since=$(date -d "$OLDEST" -Is)" | \
+function fetch-issues() {
+  local repo=$1
+  [[ -z "$repo" ]] && echo "Empty repository string" && exit 9
+  gh api --paginate --method GET -F per_page=100 "/repos/${repo}/issues?state=open&since=$(date -d "$OLDEST" -Is)" | \
     jq "[
       .[] | select(
         ( # has labels, and assignee
@@ -176,9 +178,12 @@ fetch-issues() {
     ]"
 }
 
-filter-out-answered-issues() {
-  comment_urls=$(jq -r '.[] | select(.comments != 0) | .comments_url' <<<"$1")
-  has_comments=()
+function filter-out-answered-issues() {
+  local comment_urls issue_url issues_with_comments issues
+  local -a has_comments
+
+  issues="$1"
+  comment_urls=$(jq -r '.[] | select(.comments != 0) | .comments_url' <<<"$issues")
 
   # Fetch comments of issue and check if it has comments by MEMBERS
   while read -r url; do
