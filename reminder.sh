@@ -19,28 +19,32 @@ check-cmd gh jq sendmail
 
 # Defaults
 ORG=NLnetLabs
-REPO=NLnetLabs/cascade
+REPOS=()
 
 OLDEST="7 days ago"
 NEWEST="2 days ago"
 
 TO=""
 FROM="$USER@$HOSTNAME"
-SUBJECT="Reminder about unanswered issues in <repository>"
+SUBJECT_PRE="Reminder about unanswered issues in"
+SUBJECT="$SUBJECT_PRE <repository>"
 SENDMAIL_ACCOUNT=default
 
+###
 # Argument parsing and help
+###
 
 SCRIPTNAME=$0
 
 usage() {
   cat <<EOF
-Usage: $SCRIPTNAME [OPTIONS] -t <recipient>
+Usage: $SCRIPTNAME [OPTIONS] -t <recipient> <repository...>
 
 Notify the recipient via e-mail about unanswered GitHub issues, if they are older than '--until' and have no labels or assignees.
 
+Requires jq, gh, and sendmail.
+
 Options:
-  -r, --repository    Specify the repository to check [default: $REPO]
   -t, --to            Specify the email address to send the reminder mail to
   -f, --from          Specify the email address to send the reminder mail from [default: $FROM]
       --subject       Specify the email subject for the reminder mail [default: $SUBJECT]
@@ -52,16 +56,25 @@ Options:
 EOF
 }
 
-eval set -- "$(getopt -n "$0" -o "hr:t:f:o:s:u:a:" -l "help,repository:,to:,from:,org:,since:,until:,subject:,account:" -- "$@")"
+check-empty() {
+  if [[ -z "$2" ]]; then
+    echo "Missing $1 '$3' $4"
+    usage
+    exit 1
+  fi
+}
+
+check-empty-opt() { check-empty option "$@"; }
+check-empty-arg() { check-empty argument "$@"; }
+
+# Assigning to a variable first to exit on getopt failure (through set -e)
+PARSED_ARGS=$(getopt -n "$0" -o "ht:f:o:s:u:a:" -l "help,to:,from:,org:,since:,until:,subject:,account:" -- "$@")
+eval set -- "$PARSED_ARGS"
 
 while [[ -n "$1" ]]; do
   case "$1" in
     -h|--help)
       usage && exit
-      ;;
-    -r|--repository)
-      REPO=$2
-      shift 2
       ;;
     -t|--to)
       TO=$2
@@ -99,43 +112,16 @@ while [[ -n "$1" ]]; do
   esac
 done
 
-if [[ -z "$TO" ]]; then
-  echo "Missing option '-t'"
-  usage
-  exit 1
-fi
+REPOS=("$@")
 
-SUBJECT="Reminder about unanswered issues in $REPO"
-
-# Fetch current members of $ORG
-MEMBERS=$(gh api --method GET -F per_page=100 "/orgs/${ORG}/members" | jq -r '[ .[] | .login ] | join("|")')
+check-empty-opt "$TO" "-t" "(recipient)"
+check-empty-arg "${REPOS[*]}" "repository"
 
 ##
 ## Functions ##
 ##
 
-function notify() {
-  if [[ "$SENDMAIL_ACCOUNT" != default ]]; then
-    sendmail -a "$SENDMAIL_ACCOUNT" -i -t
-  else
-    sendmail -i -t
-  fi <<MAIL
-To: ${TO}
-From: ${FROM}
-Subject: ${SUBJECT}
-
-There are issues without answers from members of the specified org.
-
-Org: $ORG
-Repo: $REPO
-Filtered by oldest="$OLDEST" and newest="$NEWEST"
-
-$1
-
-MAIL
-}
-
-prettify-issues() {
+function prettify-issues() {
   [[ -z "$1" ]] && return 1
   <<<"$1" jq -r 'sort_by(.number) | .[] |
     "- "
@@ -215,15 +201,87 @@ function filter-out-answered-issues() {
 
 }
 
-is-empty() {
+function is-empty() {
   [[ -z "$1" ]] || [[ "$(jq '. == []' <<<"$1")" == true ]]
+}
+
+function join_by() {
+  local delim=$1 first=$2
+  if shift 2; then
+    printf %s "$first" "${@/#/$delim}"
+  fi
+}
+
+function summarize-repos() {
+  [[ -z "$*" ]] && exit 9
+  count=$#
+
+  if [[ "$count" -gt 3 ]]; then
+    echo "multiple repositories"
+  else
+    join_by ", " "$@"
+  fi
+}
+
+function generate-email() {
+  SUBJECT="$SUBJECT_PRE $(summarize-repos "${!PRETTY_ISSUES[@]}")"
+  cat <<MAIL
+To: ${TO}
+From: ${FROM}
+Subject: ${SUBJECT}
+
+There are issues without answers from members of the specified org.
+
+Org: $ORG
+Checked repos: ${REPOS[*]}
+Filtered by oldest="$OLDEST" and newest="$NEWEST"
+
+MAIL
+
+for repo in "${!PRETTY_ISSUES[@]}"; do
+  cat <<ISSUES
+Repository: ${repo}
+
+${PRETTY_ISSUES["$repo"]}
+
+ISSUES
+done
+}
+
+function send-notify() {
+  if [[ "$SENDMAIL_ACCOUNT" != default ]]; then
+    sendmail -a "$SENDMAIL_ACCOUNT" -i -t
+  else
+    sendmail -i -t
+  fi
 }
 
 ### MAIN ###
 
-issues=$(fetch-issues)
-issues=$(filter-out-answered-issues "$issues")
+# Fetch current members of $ORG
+MEMBERS=$(
+  gh api --method GET -F per_page=100 "/orgs/${ORG}/members" | \
+    jq -r '[ .[] | .login ] | join("|")'
+)
 
-if ! is-empty "$issues"; then
-  notify "$(prettify-issues "$issues")"
+# Create an associative array
+declare -A collected_issues
+
+for repo in "${REPOS[@]}"; do
+  issues=$(fetch-issues "$repo")
+  issues=$(filter-out-answered-issues "$issues")
+
+  if ! is-empty "$issues"; then
+    collected_issues["$repo"]="$issues"
+  fi
+done
+
+if [[ "${#collected_issues[@]}" != 0 ]]; then
+  declare -A PRETTY_ISSUES
+  for repo in "${!collected_issues[@]}"; do
+    PRETTY_ISSUES["$repo"]=$(prettify-issues "${collected_issues["$repo"]}")
+  done
+
+  # generate-email uses the PRETTY_ISSUES variable
+  generate-email | send-notify
 fi
