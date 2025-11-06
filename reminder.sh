@@ -7,12 +7,12 @@ check-cmd() {
   error=false
   for cmd in "$@"; do
     if ! command -v "$cmd" >/dev/null; then
-      echo "Need $1 installed"
+      echo "Need $cmd installed"
       error=true
     fi
   done
 
-  [[ "$error" == true ]] && exit 1 || true
+  [[ "$error" == false ]]
 }
 
 check-cmd gh jq sendmail
