@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 
+# Exit the script if any command errors
 set -e
+# Return an error for a pipeline if any command of the pipeline fails and not
+# only the last one
 set -o pipefail
 
+# Check if all given commands are available
 check-cmd() {
   [[ -z "$*" ]] && exit 2
   error=false
@@ -32,7 +36,7 @@ SUBJECT="$SUBJECT_PRE <repository>"
 SENDMAIL_ACCOUNT=default
 
 ###
-# Argument parsing and help
+# Help message
 ###
 
 SCRIPTNAME=$0
@@ -58,6 +62,10 @@ Options:
 EOF
 }
 
+###
+# Helper functions for checking parsed arguments
+###
+
 check-empty() {
   if [[ -z "$2" ]]; then
     echo "Missing $1 '$3' $4"
@@ -68,6 +76,10 @@ check-empty() {
 
 check-empty-opt() { check-empty option "$@"; }
 check-empty-arg() { check-empty argument "$@"; }
+
+###
+# Argument parsing
+###
 
 # Assigning to a variable first to exit on getopt failure (through set -e)
 PARSED_ARGS=$(getopt -n "$0" -o "ht:f:o:s:u:a:" -l "help,cat,to:,from:,org:,since:,until:,subject:,account:" -- "$@")
@@ -127,6 +139,7 @@ check-empty-arg "${REPOS[*]}" "repository"
 ## Functions ##
 ##
 
+# Turn the issue object into text for the e-mail
 function prettify-issues() {
   [[ -z "$1" ]] && return 1
   <<<"$1" jq -r 'sort_by(.number) | .[] |
@@ -143,6 +156,8 @@ function prettify-issues() {
     '
 }
 
+# Fetch the issues for the specified repository, filter, and reduce the
+# issue objects to select data fields
 function fetch-issues() {
   local repo=$1
   [[ -z "$repo" ]] && echo "Empty repository string" && exit 9
@@ -170,14 +185,17 @@ function fetch-issues() {
     ]"
 }
 
+# Filter out issues that have comments from MEMBERS
 function filter-out-answered-issues() {
+  # Define local variables to not override variables with the same name used in
+  # the surrounding context when calling this function
   local comment_urls issue_url issues_with_comments issues
   local -a has_comments
 
   issues="$1"
   comment_urls=$(jq -r '.[] | select(.comments != 0) | .comments_url' <<<"$issues")
 
-  # Fetch comments of issue and check if it has comments by MEMBERS
+  # Fetch comments per issue and check if it has comments by MEMBERS
   while read -r url; do
     [[ -z "$url" ]] && continue
     issue_url=$(gh api --method GET -F per_page=100 "${url}?since=$(date -d "$OLDEST" -Is)" | \
@@ -191,6 +209,7 @@ function filter-out-answered-issues() {
     fi
   done <<<"$comment_urls"
 
+  # Create a string with the issue links separated by a pipe ('|')
   issues_with_comments=$(IFS="|"; echo "${has_comments[*]}")
 
   # Filter out issues that have comments from MEMBERS
@@ -266,7 +285,9 @@ function send-notify() {
   fi
 }
 
+############
 ### MAIN ###
+############
 
 # Fetch current members of $ORG
 MEMBERS=$(
@@ -274,7 +295,7 @@ MEMBERS=$(
     jq -r '[ .[] | .login ] | join("|")'
 )
 
-# Create an associative array
+# Create an associative array to map repo=>issues
 declare -A collected_issues
 
 for repo in "${REPOS[@]}"; do
