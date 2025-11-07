@@ -220,9 +220,8 @@ function join_by() {
 
 function summarize-repos() {
   [[ -z "$*" ]] && exit 9
-  count=$#
 
-  if [[ "$count" -gt 3 ]]; then
+  if [[ "$#" -gt 3 ]]; then
     echo "multiple repositories"
   else
     join_by ", " "$@"
@@ -244,6 +243,7 @@ Filtered by oldest="$OLDEST" and newest="$NEWEST"
 
 MAIL
 
+local repo
 for repo in "${!PRETTY_ISSUES[@]}"; do
   cat <<ISSUES
 Repository: ${repo}
