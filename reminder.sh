@@ -57,7 +57,7 @@ Options:
   -s, --since         Specify how old issues should maximally be to be fetched and checked for comments [default: $OLDEST]
   -u, --until         Specify how old issues should be at least to be considered unanswered [default: $NEWEST]
   -a, --account       Specify the sendmail account to use [default: $SENDMAIL_ACCOUNT]
-      --cat           Print the resulting e-mail to the terminal instead of sending it out
+      --cat           Print the resulting e-mail to the terminal instead of sending it out (makes '-t' optional)
   -h, --help          Print this help text
 EOF
 }
@@ -132,7 +132,7 @@ done
 
 REPOS=("$@")
 
-check-empty-opt "$TO" "-t" "(recipient)"
+[[ "$CAT_ONLY" != true ]] && check-empty-opt "$TO" "-t" "(recipient)"
 check-empty-arg "${REPOS[*]}" "repository"
 
 ##
