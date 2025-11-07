@@ -30,6 +30,7 @@ Options:
   -s, --since         Specify how old issues should maximally be to be fetched and checked for comments [default: 7 days ago]
   -u, --until         Specify how old issues should be at least to be considered unanswered [default: 2 days ago]
   -a, --account       Specify the sendmail account to use [default: default]
+      --cat           Print the resulting e-mail to the terminal instead of sending it out
   -h, --help          Print this help text
 ```
 

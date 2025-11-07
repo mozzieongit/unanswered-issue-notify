@@ -53,6 +53,7 @@ Options:
   -s, --since         Specify how old issues should maximally be to be fetched and checked for comments [default: $OLDEST]
   -u, --until         Specify how old issues should be at least to be considered unanswered [default: $NEWEST]
   -a, --account       Specify the sendmail account to use [default: $SENDMAIL_ACCOUNT]
+      --cat           Print the resulting e-mail to the terminal instead of sending it out
   -h, --help          Print this help text
 EOF
 }
@@ -69,13 +70,17 @@ check-empty-opt() { check-empty option "$@"; }
 check-empty-arg() { check-empty argument "$@"; }
 
 # Assigning to a variable first to exit on getopt failure (through set -e)
-PARSED_ARGS=$(getopt -n "$0" -o "ht:f:o:s:u:a:" -l "help,to:,from:,org:,since:,until:,subject:,account:" -- "$@")
+PARSED_ARGS=$(getopt -n "$0" -o "ht:f:o:s:u:a:" -l "help,cat,to:,from:,org:,since:,until:,subject:,account:" -- "$@")
 eval set -- "$PARSED_ARGS"
 
 while [[ -n "$1" ]]; do
   case "$1" in
     -h|--help)
       usage && exit
+      ;;
+    --cat)
+      CAT_ONLY=true
+      shift 1
       ;;
     -t|--to)
       TO=$2
@@ -250,10 +255,14 @@ done
 }
 
 function send-notify() {
-  if [[ "$SENDMAIL_ACCOUNT" != default ]]; then
-    sendmail -a "$SENDMAIL_ACCOUNT" -i -t
+  if [[ "$CAT_ONLY" == true ]]; then
+    cat
   else
-    sendmail -i -t
+    if [[ "$SENDMAIL_ACCOUNT" != default ]]; then
+      sendmail -a "$SENDMAIL_ACCOUNT" -i -t
+    else
+      sendmail -i -t
+    fi
   fi
 }
 
