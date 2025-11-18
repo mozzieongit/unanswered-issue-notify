@@ -63,3 +63,24 @@ Repository: mozzieongit/test-repo
     by @secondary-affair at 2025-11-05T15:13:49Z
     at https://github.com/mozzieongit/test-repo/issues/6
 ```
+
+## Using systemd for daily checking
+
+In the `systemd` subdirectory you can find a systemd service and systemd timer
+that you can install in your local systemd directory.
+
+1. Copy or link the reminder script to a location of your choosing, e.g. use
+   `cp -t $HOME/.local/bin/ reminder.sh`
+1. Copy the files into your user's systemd service directory with `cp -t
+   $HOME/.config/systemd/user/ systemd/github-reminder.*`
+1. Edit the just copied systemd service file with your favorite editor:
+   `$EDITOR $HOME/.config/systemd/user/github-reminder.service`
+   - Change the path for `ExecStart` to point to where you just copied the
+     `reminder.sh` script above.
+   - Change the recipient and sender e-mail addresses
+   - Change the GitHub repositories to monitor
+1. Reload systemd to pick up the new service: `systemctl --user daemon-reload`
+1. Enable the timer: `systemctl --user enable --now github-reminder.timer`
+1. (Optionally) test your service file with `systemctl --user start
+   github-reminder.service` and check its status with `systemctl --user status
+   github-reminder.service`

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the GitHub unanswered issues reminder script.
+
+[Service]
+Type=oneshot
+ExecStart=/home/USERNAME/.local/bin/reminder.sh --to your-email@localhost --from your-email@localhost NLnetLabs/cascade NLnetLabs/dnst
+Requires=network-online.target
+
+[Install]
+WantedBy=default.target

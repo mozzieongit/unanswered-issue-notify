@@ -1,0 +1,14 @@
+[Unit]
+Description=Timer to run the GitHub unanswered issues reminder script.
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+# Run every day at 9:00 local time
+OnCalendar=09:00
+# Also run this shortly after boot in case the system was powered down at 9:00
+Persistent=true
+Unit=github-reminder.service
+
+[Install]
+WantedBy=timers.target
