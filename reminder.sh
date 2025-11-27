@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Unanswered issues reminder script from Jannik Peters at
+# https://github.com/mozzieongit/unanswered-issue-notify
+
 # Exit the script if any command errors
 set -e
 # Return an error for a pipeline if any command of the pipeline fails and not
