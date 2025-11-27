@@ -31,6 +31,8 @@ Options:
   -u, --until         Specify how old issues should be at least to be considered unanswered [default: 2 days ago]
   -a, --account       Specify the sendmail account to use [default: default]
       --cat           Print the resulting e-mail to the terminal instead of sending it out (makes '-t' optional)
+      --slack-channel Send to this slack channel instead of sending an e-mail (makes '-t' optional; and omits the e-mail headers)
+      --slack-token   Use this authentication token (required with --slack-channel)
   -h, --help          Print this help text
 ```
 

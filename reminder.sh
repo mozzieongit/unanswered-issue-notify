@@ -61,6 +61,8 @@ Options:
   -u, --until         Specify how old issues should be at least to be considered unanswered [default: $NEWEST]
   -a, --account       Specify the sendmail account to use [default: $SENDMAIL_ACCOUNT]
       --cat           Print the resulting e-mail to the terminal instead of sending it out (makes '-t' optional)
+      --slack-channel Send to this slack channel instead of sending an e-mail (makes '-t' optional; and omits the e-mail headers)
+      --slack-token   Use this authentication token (required with --slack-channel)
   -h, --help          Print this help text
 EOF
 }
@@ -85,7 +87,11 @@ check-empty-arg() { check-empty argument "$@"; }
 ###
 
 # Assigning to a variable first to exit on getopt failure (through set -e)
-PARSED_ARGS=$(getopt -n "$0" -o "ht:f:o:s:u:a:" -l "help,cat,to:,from:,org:,since:,until:,subject:,account:" -- "$@")
+PARSED_ARGS=$(getopt -n "$0" \
+  -o "ht:f:o:s:u:a:" \
+  -l "help,cat,to:,from:,org:,since:,until:,subject:,account:,slack-token:,slack-channel:" \
+  -- "$@"
+)
 eval set -- "$PARSED_ARGS"
 
 while [[ -n "$1" ]]; do
@@ -125,6 +131,14 @@ while [[ -n "$1" ]]; do
       SENDMAIL_ACCOUNT=$2
       shift 2
       ;;
+    --slack-channel)
+      SLACK_CHANNEL=$2
+      shift 2
+      ;;
+    --slack-token)
+      SLACK_TOKEN=$2
+      shift 2
+      ;;
     --)
       shift 1
       break
@@ -135,7 +149,9 @@ done
 
 REPOS=("$@")
 
-[[ "$CAT_ONLY" != true ]] && check-empty-opt "$TO" "-t" "(recipient)"
+if [[ "$CAT_ONLY" != true && -z "$SLACK_CHANNEL" ]]; then
+  check-empty-opt "$TO" "-t" "(recipient)"
+fi
 check-empty-arg "${REPOS[*]}" "repository"
 
 ##
@@ -276,9 +292,36 @@ ISSUES
 done
 }
 
+function generate-slack() {
+  SUBJECT="$SUBJECT_PRE $(summarize-repos "${!PRETTY_ISSUES[@]}")"
+  cat <<MAIL
+## ${SUBJECT}
+
+Org: $ORG
+Checked repos: ${REPOS[*]}
+Filtered by oldest="$OLDEST" and newest="$NEWEST"
+
+MAIL
+
+local repo
+for repo in "${!PRETTY_ISSUES[@]}"; do
+  cat <<ISSUES
+Repository: ${repo}
+
+${PRETTY_ISSUES["$repo"]}
+
+ISSUES
+done
+}
+
 function send-notify() {
   if [[ "$CAT_ONLY" == true ]]; then
     cat
+  elif [[ -n "$SLACK_CHANNEL" ]]; then
+    curl -X POST https://slack.com/api/chat.postMessage \
+      -H "Authorization: Bearer $SLACK_TOKEN" \
+      --data "channel=${SLACK_CHANNEL}" \
+      --data-urlencode "text=$(cat)"
   else
     if [[ "$SENDMAIL_ACCOUNT" != default ]]; then
       sendmail -a "$SENDMAIL_ACCOUNT" -i -t
@@ -317,5 +360,9 @@ if [[ "${#collected_issues[@]}" != 0 ]]; then
   done
 
   # generate-email uses the PRETTY_ISSUES variable
-  generate-email | send-notify
+  if [[ -n "$SLACK_CHANNEL" ]]; then
+    generate-slack
+  else
+    generate-email
+  fi | send-notify
 fi
