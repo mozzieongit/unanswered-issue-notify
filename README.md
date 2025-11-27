@@ -71,7 +71,8 @@ that you can install in your local systemd directory.
 
 1. Copy or link the reminder script to a location of your choosing, e.g. use
    `cp -t $HOME/.local/bin/ reminder.sh`
-1. Copy the files into your user's systemd service directory with `cp -t
+1. If necessary, create your user's systemd directory: `mkdir -p $HOME/.config/systemd/user`
+1. Copy the systemd unit files into your user's systemd service directory with `cp -t
    $HOME/.config/systemd/user/ systemd/github-reminder.*`
 1. Edit the just copied systemd service file with your favorite editor:
    `$EDITOR $HOME/.config/systemd/user/github-reminder.service`
